@@ -14,7 +14,7 @@ from faker import Faker
 fake = Faker()
 
 STREAM_NAME = "sentiment-stream"
-REGION = "us-east-1"  # Change to your region
+REGION = "ap-southeast-2"  # Change to your region
 
 # Simulated review/tweet templates
 POSITIVE_TEMPLATES = [
