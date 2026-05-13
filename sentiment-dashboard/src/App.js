@@ -22,6 +22,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [marqueeText, setMarqueeText] = useState('');
 
   const fetchData = async () => {
     try {
@@ -30,6 +31,7 @@ export default function App() {
       const json = await res.json();
       setData(json);
       setLastUpdated(new Date().toLocaleTimeString());
+      if (json[0]) setMarqueeText(`LATEST: "${json[0].text}" → [${json[0].sentiment}]`);
       setError(null);
       setLoading(false);
     } catch (err) {
@@ -64,14 +66,24 @@ export default function App() {
   const trend = trendingNeg ? 'NEGATIVE' : trendingPos ? 'POSITIVE' : 'MIXED';
   const trendColor = trendingNeg ? COLORS.NEGATIVE : trendingPos ? COLORS.POSITIVE : G;
 
+  const formatTime = (ts) => {
+    try { return new Date(ts).toLocaleTimeString(); } catch { return ''; }
+  };
+
+  const marqueeContent = `>>> ${marqueeText}   ·   POSITIVE: ${counts.POSITIVE||0}  ·  NEGATIVE: ${counts.NEGATIVE||0}  ·  NEUTRAL: ${counts.NEUTRAL||0}  ·  MIXED: ${counts.MIXED||0}   ·   DOMINANT: ${dominant?.[0]}   ·   PIPELINE: kinesis → lambda → comprehend → dynamodb   <<<`;
+
   return (
     <div style={{ backgroundColor:'#000', minHeight:'100vh', color:G, fontFamily:"'Courier New', monospace", padding:'2rem' }}>
-      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.2}} @keyframes blink{0%,100%{opacity:1}50%{opacity:0}} *{box-sizing:border-box}`}</style>
+      <style>{`
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.2}}
+        @keyframes marquee{0%{transform:translateX(0%)}100%{transform:translateX(-50%)}}
+        *{box-sizing:border-box}
+      `}</style>
 
       {/* Header */}
-      <div style={{ marginBottom:'2rem', borderBottom:`1px solid ${G}`, paddingBottom:'1rem' }}>
+      <div style={{ marginBottom:'1rem', borderBottom:`1px solid ${G}`, paddingBottom:'1rem' }}>
         <h1 style={{ fontSize:'1.75rem', fontWeight:'700', color:G, margin:0, letterSpacing:'0.1em' }}>
-          &gt; Sentiment_PULSE <span style={{ color:'#ff3131', animation:'blink 1s infinite' }}>[LIVE]</span>
+          &gt; Sentiment_PULSE <span style={{ color:'#ff3131' }}>[LIVE]</span>
         </h1>
         <p style={{ color:'#00aa2a', marginTop:'0.25rem', fontSize:'0.85rem' }}>
           <span style={{ width:'8px', height:'8px', borderRadius:'50%', backgroundColor:G, display:'inline-block', marginRight:'0.5rem', animation:'pulse 2s infinite' }} />
@@ -79,26 +91,38 @@ export default function App() {
         </p>
       </div>
 
+      {/* Marquee ticker */}
+      <div style={{ overflow:'hidden', borderBottom:`1px solid #001a00`, marginBottom:'1.5rem', padding:'0.4rem 0' }}>
+        <div style={{ display:'flex', width:'200%', animation:'marquee 25s linear infinite', whiteSpace:'nowrap', fontSize:'0.78rem', color:'#00aa2a' }}>
+          <span style={{ flex:'0 0 50%' }}>{marqueeContent}</span>
+          <span style={{ flex:'0 0 50%' }}>{marqueeContent}</span>
+        </div>
+      </div>
+
       {/* Stat Cards */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'1rem', marginBottom:'1.5rem' }}>
-        {['POSITIVE','NEGATIVE','NEUTRAL','MIXED'].map(s => (
-          <div key={s} style={{ backgroundColor:'#000', borderRadius:'2px', padding:'1rem', border:`1px solid ${COLORS[s]}`, textAlign:'center', boxShadow:`0 0 8px ${COLORS[s]}33` }}>
-            <div style={{ fontSize:'1.75rem', fontWeight:'700', color:COLORS[s] }}>{counts[s] || 0}</div>
-            <div style={{ fontSize:'0.7rem', textTransform:'uppercase', letterSpacing:'0.1em', color:COLORS[s] }}>{s}</div>
-          </div>
-        ))}
+        {['POSITIVE','NEGATIVE','NEUTRAL','MIXED'].map(s => {
+          const pct = ((counts[s]||0) / total * 100).toFixed(1);
+          return (
+            <div key={s} style={{ backgroundColor:'#000', borderRadius:'2px', padding:'1rem', border:`1px solid ${COLORS[s]}`, textAlign:'center', boxShadow:`0 0 8px ${COLORS[s]}33` }}>
+              <div style={{ fontSize:'1.75rem', fontWeight:'700', color:COLORS[s] }}>{counts[s]||0}</div>
+              <div style={{ fontSize:'0.7rem', textTransform:'uppercase', letterSpacing:'0.1em', color:COLORS[s], marginBottom:'0.5rem' }}>{s}</div>
+              <div style={{ backgroundColor:'#001a00', borderRadius:'1px', height:'4px', width:'100%' }}>
+                <div style={{ backgroundColor:COLORS[s], height:'4px', width:`${pct}%`, borderRadius:'1px', transition:'width 0.5s ease' }} />
+              </div>
+              <div style={{ fontSize:'0.65rem', color:'#00aa2a', marginTop:'0.3rem' }}>{pct}%</div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Charts */}
       <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:'1.5rem', marginBottom:'1.5rem' }}>
-
-        {/* Breakdown */}
         <div style={{ backgroundColor:'#000', borderRadius:'2px', padding:'1.5rem', border:`1px solid ${G}`, boxShadow:`0 0 8px ${G}33` }}>
           <div style={{ fontSize:'0.8rem', fontWeight:'700', color:G, marginBottom:'0.4rem', textTransform:'uppercase', letterSpacing:'0.15em' }}>// breakdown</div>
-          <div style={{ fontSize:'0.72rem', color:'#00aa2a', marginBottom:'1rem', lineHeight:'1.5' }}>
+          <div style={{ fontSize:'0.72rem', color:'#00aa2a', marginBottom:'1rem' }}>
             dominant: <span style={{ color:COLORS[dominant?.[0]] }}>{dominant?.[0]}</span> at {((dominant?.[1]||0)/total*100).toFixed(1)}%
           </div>
-          {/* Pie + Legend side by side */}
           <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'1.5rem' }}>
             <PieChart width={180} height={180}>
               <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={85} strokeWidth={1} stroke="#000" labelLine={false} label={renderCustomLabel}>
@@ -121,10 +145,9 @@ export default function App() {
           </div>
         </div>
 
-        {/* Timeline */}
         <div style={{ backgroundColor:'#000', borderRadius:'2px', padding:'1.5rem', border:`1px solid ${G}`, boxShadow:`0 0 8px ${G}33` }}>
           <div style={{ fontSize:'0.8rem', fontWeight:'700', color:G, marginBottom:'0.4rem', textTransform:'uppercase', letterSpacing:'0.15em' }}>// sentiment timeline (last 20)</div>
-          <div style={{ fontSize:'0.72rem', color:'#00aa2a', marginBottom:'1rem', lineHeight:'1.5' }}>
+          <div style={{ fontSize:'0.72rem', color:'#00aa2a', marginBottom:'1rem' }}>
             confidence scores over time · trending <span style={{ color:trendColor }}>{trend}</span> · y-axis = model confidence [0–1]
           </div>
           <ResponsiveContainer width="100%" height={230}>
@@ -151,7 +174,10 @@ export default function App() {
         </div>
         {data.slice(0,8).map(item => (
           <div key={item.id} style={{ padding:'0.6rem 1rem', borderRadius:'2px', background:'#000', display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.4rem', borderLeft:`3px solid ${COLORS[item.sentiment]}` }}>
-            <span style={{ color:'#00cc33', fontSize:'0.85rem' }}>&gt; {item.text}</span>
+            <div style={{ display:'flex', flexDirection:'column', gap:'0.15rem' }}>
+              <span style={{ color:'#00cc33', fontSize:'0.85rem' }}>&gt; {item.text}</span>
+              <span style={{ color:'#007700', fontSize:'0.7rem' }}>{formatTime(item.timestamp)}</span>
+            </div>
             <span style={{ fontWeight:'700', fontSize:'0.75rem', whiteSpace:'nowrap', marginLeft:'1rem', color:COLORS[item.sentiment] }}>[{item.sentiment}]</span>
           </div>
         ))}
