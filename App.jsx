@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-const API_URL = 'https://o3kuswci10.execute-api.us-east-1.amazonaws.com/prod/sentiment';
+const API_URL = process.env.REACT_APP_API_URL;
 
 function App() {
   const [data, setData] = useState([]);

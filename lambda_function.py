@@ -1,11 +1,14 @@
 import json
 import base64
+import os
 import boto3
 import uuid
 from datetime import datetime, timezone
 
-comprehend = boto3.client('comprehend', region_name='ap-southeast-2')
-dynamodb = boto3.resource('dynamodb', region_name='ap-southeast-2')
+REGION = os.environ.get("AWS_REGION", "us-east-1")
+
+comprehend = boto3.client('comprehend', region_name=REGION)
+dynamodb = boto3.resource('dynamodb', region_name=REGION)
 table = dynamodb.Table('SentimentResults')
 
 def lambda_handler(event, context):

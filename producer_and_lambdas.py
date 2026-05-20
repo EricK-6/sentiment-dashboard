@@ -4,6 +4,7 @@ Run: python producer.py
 Requires: pip install boto3 faker
 """
 
+import os
 import boto3
 import json
 import time
@@ -14,7 +15,7 @@ from faker import Faker
 fake = Faker()
 
 STREAM_NAME = "sentiment-stream"
-REGION = "ap-southeast-2"  # Change to your region
+REGION = os.environ.get("AWS_REGION", "us-east-1")
 
 # Simulated review/tweet templates
 POSITIVE_TEMPLATES = [

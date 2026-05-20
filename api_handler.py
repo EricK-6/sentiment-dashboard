@@ -4,7 +4,9 @@ import os
 from boto3.dynamodb.conditions import Key
 from decimal import Decimal
 
-dynamodb = boto3.resource('dynamodb', region_name='ap-southeast-2')  # <-- add this
+REGION = os.environ.get("AWS_REGION", "us-east-1")
+
+dynamodb = boto3.resource('dynamodb', region_name=REGION)
 table = dynamodb.Table('SentimentResults')
 
 class DecimalEncoder(json.JSONEncoder):

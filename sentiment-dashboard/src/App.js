@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer } from 'recharts';
 
-const API_URL = 'https://o3kuswci10.execute-api.us-east-1.amazonaws.com/prod/sentiment';
+const API_URL = process.env.REACT_APP_API_URL;
 
 const COLORS = { POSITIVE: '#00cfff', NEGATIVE: '#ff3131', NEUTRAL: '#ffaa00', MIXED: '#bf5fff' };
 const G = '#00ff41';
