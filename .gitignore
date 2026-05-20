@@ -1,1 +1,18 @@
-lambda.zip
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Deployment artifacts (SAM owns the build pipeline now)
+*.zip
+.aws-sam/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Frontend build outputs (also covered by sentiment-dashboard/.gitignore)
+sentiment-dashboard/build/
+sentiment-dashboard/node_modules/
