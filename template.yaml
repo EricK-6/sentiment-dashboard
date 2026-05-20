@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Real-Time Sentiment Dashboard — serverless NLP pipeline.
+  Kinesis → Lambda (Comprehend) → DynamoDB → Lambda → API Gateway.
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 30
+    MemorySize: 256
+    Architectures: [arm64]
+    Environment:
+      Variables:
+        DYNAMODB_TABLE: !Ref SentimentTable
+
+Resources:
+
+  SentimentStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      Name: sentiment-stream
+      ShardCount: 1
+      RetentionPeriodHours: 24
+
+  SentimentTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: SentimentResults
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: bucket
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        # Enables Query (sorted, paginated) instead of Scan for "latest N records".
+        # Single fixed partition is a hot-partition risk at high write volume —
+        # production fix would shard `bucket` (e.g. `hash(id) % N`).
+        - IndexName: ByTimestamp
+          KeySchema:
+            - AttributeName: bucket
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  SentimentProcessor:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: SentimentProcessor
+      CodeUri: .
+      Handler: lambda_function.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SentimentTable
+        - Statement:
+            - Effect: Allow
+              Action: comprehend:DetectSentiment
+              Resource: '*'
+      Events:
+        KinesisEvent:
+          Type: Kinesis
+          Properties:
+            Stream: !GetAtt SentimentStream.Arn
+            StartingPosition: LATEST
+            BatchSize: 10
+            MaximumRetryAttempts: 2
+            BisectBatchOnFunctionError: true
+
+  SentimentQuery:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: SentimentQuery
+      CodeUri: .
+      Handler: api_handler.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref SentimentTable
+      Events:
+        GetSentiment:
+          Type: Api
+          Properties:
+            RestApiId: !Ref SentimentApi
+            Path: /sentiment
+            Method: GET
+
+  SentimentApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      Cors:
+        AllowMethods: "'GET,OPTIONS'"
+        AllowHeaders: "'Content-Type'"
+        AllowOrigin: "'*'"
+
+Outputs:
+  ApiUrl:
+    Description: Endpoint to set as REACT_APP_API_URL in the dashboard.
+    Value: !Sub https://${SentimentApi}.execute-api.${AWS::Region}.amazonaws.com/prod/sentiment
+  StreamName:
+    Description: Kinesis stream the producer writes to.
+    Value: !Ref SentimentStream
+  TableName:
+    Description: DynamoDB table holding sentiment results.
+    Value: !Ref SentimentTable
