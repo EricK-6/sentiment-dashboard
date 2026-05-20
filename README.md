@@ -1,41 +1,62 @@
 # Real-Time Sentiment Dashboard
 
-A serverless, event-driven NLP pipeline on AWS that ingests streaming text, performs real-time sentiment analysis, and visualises results on a live React dashboard.
+A serverless, event-driven NLP pipeline on AWS that ingests streaming text, classifies its sentiment in real time using AWS Comprehend, and visualises the results on a live React dashboard.
 
 ## Architecture
 
 ```
-[producer.py] → [Kinesis Data Stream] → [Lambda: SentimentProcessor]
-                                               ↓
-                                    [AWS Comprehend (NLP)]
-                                               ↓
-                                         [DynamoDB]
-                                               ↓
-                               [Lambda: SentimentQuery] ← [API Gateway]
-                                               ↓
-                                    [React Dashboard (Amplify)]
+producer_and_lambdas.py  →  Kinesis Data Stream  →  Lambda (SentimentProcessor)
+                                                            ↓
+                                                     AWS Comprehend
+                                                            ↓
+                                                        DynamoDB
+                                                            ↓
+                                         Lambda (SentimentQuery)  ←  API Gateway
+                                                            ↓
+                                                React Dashboard (Amplify)
 ```
 
-## AWS Services Used
+## AWS Services
 
-| Service | Purpose |
-|---|---|
-| Kinesis Data Streams | Real-time text ingestion |
-| Lambda | Serverless processing (x2 functions) |
-| AWS Comprehend | Managed NLP sentiment analysis |
-| DynamoDB | NoSQL result storage |
-| API Gateway | REST API serving dashboard |
-| Amplify | React frontend hosting |
+| Service              | Purpose                              |
+| -------------------- | ------------------------------------ |
+| Kinesis Data Streams | Real-time text ingestion             |
+| Lambda × 2           | Stream processing + API query        |
+| AWS Comprehend       | Managed NLP sentiment classification |
+| DynamoDB             | NoSQL result storage                 |
+| API Gateway          | REST endpoint for the dashboard      |
+| Amplify              | React frontend hosting               |
+
+## Project Structure
+
+```
+.
+├── producer_and_lambdas.py   # Local Kinesis producer (run with `python producer_and_lambdas.py`)
+├── lambda_function.py        # Stream processor — deployed as SentimentProcessor
+├── api_handler.py            # API query handler — deployed as SentimentQuery
+├── trust-policy.json         # IAM trust policy for Lambda execution role
+├── lambda.zip                # Deployable bundle for SentimentProcessor
+├── api_handler.zip           # Deployable bundle for SentimentQuery
+├── build-plan.md             # 3-week build plan + interview notes
+└── sentiment-dashboard/      # React dashboard (Create React App)
+    ├── src/App.js            # Main dashboard component
+    ├── .env.local            # Local env vars (gitignored)
+    └── package.json
+```
+
+> `App.jsx` at the repo root is a leftover early prototype. The live dashboard is `sentiment-dashboard/src/App.js`.
 
 ## Quick Start
 
 ### 1. Prerequisites
+
 ```bash
 pip install boto3 faker
-aws configure  # set your IAM credentials
+aws configure   # set your IAM credentials and default region
 ```
 
 ### 2. Create AWS Resources
+
 ```bash
 # Kinesis stream
 aws kinesis create-stream --stream-name sentiment-stream --shard-count 1
@@ -48,48 +69,54 @@ aws dynamodb create-table \
   --billing-mode PAY_PER_REQUEST
 ```
 
-### 3. Deploy Lambda Functions
-- Deploy `lambda_function.py` as `SentimentProcessor` (trigger: Kinesis)
-- Deploy `lambda_query.py` as `SentimentQuery` (trigger: API Gateway GET /sentiment)
-- Set env vars: `DYNAMODB_TABLE=SentimentResults`
+### 3. Deploy Lambdas
 
-### 4. Run Producer
+- Deploy [lambda_function.py](lambda_function.py) as **`SentimentProcessor`** with the Kinesis stream as its event source.
+- Deploy [api_handler.py](api_handler.py) as **`SentimentQuery`** behind an API Gateway `GET /sentiment` route with CORS enabled.
+
+Both handlers read the region from the `AWS_REGION` environment variable. Lambda sets this automatically, so no manual config is required.
+
+### 4. Run the Producer
+
 ```bash
-python producer.py
+python producer_and_lambdas.py
 ```
 
-### 5. Run Dashboard
+This streams simulated reviews into Kinesis every 2 seconds until you Ctrl+C.
+
+### 5. Run the Dashboard
+
 ```bash
-cd frontend
-cp .env.example .env.local
-# Edit .env.local with your API Gateway URL
+cd sentiment-dashboard
+echo "REACT_APP_API_URL=https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/sentiment" > .env.local
 npm install
 npm start
 ```
 
-## Environment Variables
+The dashboard polls the API every 5 seconds and re-renders as new records arrive.
 
-### React Frontend (.env.local)
-```
-REACT_APP_API_URL=https://YOUR_API_ID.execute-api.YOUR_REGION.amazonaws.com/prod
-```
+## Configuration
 
-### Lambda Functions
-```
-DYNAMODB_TABLE=SentimentResults
-AWS_REGION_NAME=us-east-1
-```
+All deployable code reads configuration from environment variables — no values are hardcoded.
 
-## Cost Estimate (Demo Usage)
-All services operate within AWS Free Tier at demo/interview scale:
-- Kinesis: 1 shard (free 12 months)
-- Comprehend: ~500 units/demo session (50K free/month)
-- Lambda: negligible (1M free/month)
-- DynamoDB: PAY_PER_REQUEST, free tier covers demo load
-- Amplify: free build minutes well within limit
+### Python (Lambda + producer)
+
+| Variable     | Default     | Notes                                                |
+| ------------ | ----------- | ---------------------------------------------------- |
+| `AWS_REGION` | `us-east-1` | Lambda sets this automatically; only matters locally |
+
+### React (Create React App)
+
+| Variable              | Required | Notes                                                                              |
+| --------------------- | -------- | ---------------------------------------------------------------------------------- |
+| `REACT_APP_API_URL`   | yes      | Full API Gateway endpoint URL. Set in `.env.local` locally; set in Amplify for prod |
+
+CRA only reads env files at startup — restart `npm start` after editing `.env.local`.
 
 ## IAM Policy (Least Privilege)
-Attach to your Lambda execution role:
+
+Attach to the Lambda execution role:
+
 ```json
 {
   "Version": "2012-10-17",
@@ -114,15 +141,32 @@ Attach to your Lambda execution role:
 }
 ```
 
-## Project Structure
+## DynamoDB Schema
+
+```json
+{
+  "id": "uuid-v4",
+  "text": "Original input text",
+  "sentiment": "POSITIVE",
+  "scores": {
+    "Positive": "0.9412",
+    "Negative": "0.0203",
+    "Neutral":  "0.0312",
+    "Mixed":    "0.0073"
+  },
+  "source": "simulated-review",
+  "timestamp": "2026-05-13T10:30:00Z"
+}
 ```
-├── producer.py              # Kinesis data producer (run locally)
-├── lambda_function.py       # Stream processor Lambda
-├── lambda_query.py          # API query Lambda
-├── frontend/
-│   ├── src/
-│   │   └── App.jsx          # React dashboard
-│   ├── .env.example
-│   └── package.json
-└── README.md
-```
+
+Scores are stored as strings to preserve DynamoDB number precision; the query Lambda converts them back to floats for the JSON response.
+
+## Cost (Demo Scale)
+
+Designed to fit comfortably inside the AWS Free Tier at demo / interview scale:
+
+- **Kinesis** — 1 shard (free for 12 months)
+- **Comprehend** — ~500 units/session (50K free/month)
+- **Lambda** — negligible (1M free requests/month)
+- **DynamoDB** — `PAY_PER_REQUEST`, well below free-tier thresholds
+- **Amplify** — free build minutes sufficient
