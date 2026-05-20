@@ -64,7 +64,7 @@ const FONTS = {
 // Data helpers (mirror DynamoDB schema shape exactly)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function computeStats(records) {
+export function computeStats(records) {
   const counts = { POSITIVE: 0, NEGATIVE: 0, NEUTRAL: 0, MIXED: 0 };
   const bySource = {};
   for (const r of records) {
@@ -79,7 +79,7 @@ function computeStats(records) {
   return { counts, bySource, total, dominant };
 }
 
-function computeHeatmap(records) {
+export function computeHeatmap(records) {
   const grid = Array.from({ length: 7 }, () =>
     Array.from({ length: 24 }, () => ({ total: 0, pos: 0, neg: 0 }))
   );
@@ -98,10 +98,10 @@ function computeHeatmap(records) {
   return grid;
 }
 
-function detectAnomalies(records) {
+export function detectAnomalies(records) {
   const alerts = [];
   // records arrive newest-first from the API
-  for (let i = 0; i < records.length - 5; i++) {
+  for (let i = 0; i <= records.length - 5; i++) {
     const window = records.slice(i, i + 5);
     const negCount = window.filter(r => r.sentiment === 'NEGATIVE').length;
     if (negCount >= 4) {
@@ -187,13 +187,13 @@ function generateMockBatch(count = 40) {
   );
 }
 
-function safeScore(r, label) {
+export function safeScore(r, label) {
   const v = r?.scores?.[label];
   if (v == null) return 0;
   return typeof v === 'string' ? parseFloat(v) : v;
 }
 
-function confidenceOf(r) {
+export function confidenceOf(r) {
   if (!r) return 0;
   const label = (r.sentiment || '').charAt(0) + (r.sentiment || '').slice(1).toLowerCase();
   return safeScore(r, label);
