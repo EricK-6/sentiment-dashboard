@@ -53,8 +53,7 @@ flowchart LR
 ├── api_handler.py            # API query handler — deployed as SentimentQuery
 ├── producer.py               # Local Kinesis producer (run with `python producer.py`)
 ├── requirements.txt          # Pinned Python deps for the producer
-├── trust-policy.json         # IAM trust policy for Lambda execution role
-├── build-plan.md             # 3-week build plan + interview notes
+├── docs/build-plan.md        # Original 3-week build plan + interview notes
 └── sentiment-dashboard/      # React dashboard (Create React App)
     ├── src/
     │   ├── App.js                            # Composition root — wires components together
