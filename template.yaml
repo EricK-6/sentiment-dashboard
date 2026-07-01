@@ -6,7 +6,7 @@ Description: >
 
 Globals:
   Function:
-    Runtime: python3.11
+    Runtime: python3.13
     Timeout: 30
     MemorySize: 256
     Architectures: [arm64]
@@ -51,6 +51,14 @@ Resources:
           Projection:
             ProjectionType: ALL
 
+  # Failed batches land here (metadata + sequence numbers) after retries are
+  # exhausted, instead of being silently dropped off the stream.
+  SentimentDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: sentiment-processor-dlq
+      MessageRetentionPeriod: 1209600  # 14 days
+
   SentimentProcessor:
     Type: AWS::Serverless::Function
     Properties:
@@ -60,9 +68,11 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref SentimentTable
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt SentimentDLQ.QueueName
         - Statement:
             - Effect: Allow
-              Action: comprehend:DetectSentiment
+              Action: comprehend:BatchDetectSentiment
               Resource: '*'
       Events:
         KinesisEvent:
@@ -73,6 +83,13 @@ Resources:
             BatchSize: 10
             MaximumRetryAttempts: 2
             BisectBatchOnFunctionError: true
+            # Report per-record failures so only failed records are retried
+            # (the handler returns batchItemFailures); the rest are checkpointed.
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
+            DestinationConfig:
+              OnFailure:
+                Destination: !GetAtt SentimentDLQ.Arn
 
   SentimentQuery:
     Type: AWS::Serverless::Function
@@ -110,3 +127,6 @@ Outputs:
   TableName:
     Description: DynamoDB table holding sentiment results.
     Value: !Ref SentimentTable
+  DeadLetterQueueUrl:
+    Description: SQS queue receiving failed batches after retries are exhausted.
+    Value: !Ref SentimentDLQ

@@ -7,7 +7,9 @@ from decimal import Decimal
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 TABLE_NAME = os.environ.get("DYNAMODB_TABLE", "SentimentResults")
 INDEX_NAME = os.environ.get("DYNAMODB_GSI", "ByTimestamp")
-PAGE_LIMIT = 50
+# Must cover the dashboard's largest consumer — the ECG renders the last 80
+# records — plus headroom for the other panels. Small items, so one query page.
+PAGE_LIMIT = 100
 
 dynamodb = boto3.resource('dynamodb', region_name=REGION)
 table = dynamodb.Table(TABLE_NAME)
