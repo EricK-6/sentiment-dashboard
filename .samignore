@@ -1,0 +1,13 @@
+# Only lambda_function.py and api_handler.py need to ship to Lambda.
+# Keep the frontend, node_modules, docs, and tooling out of the function zips.
+sentiment-dashboard/
+node_modules/
+docs/
+.github/
+.git/
+.aws-sam/
+scratchpad/
+*.md
+producer.py
+.env
+.env.*

@@ -239,6 +239,7 @@ export default function App() {
   const [clock, setClock] = useState(() => new Date());
   const narrow = useMediaQuery('(max-width: 760px)');
   const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const loadedOnce = useRef(false);
 
   useEffect(() => {
     if (simulating) return;
@@ -256,8 +257,12 @@ export default function App() {
         setLastSync(new Date());
         setError(null);
         setLoading(false);
+        loadedOnce.current = true;
       } catch (err) {
         if (cancelled) return;
+        // No backend reachable on first load → silently fall back to the built-in
+        // demo so the dashboard is always populated (works with the stack deleted).
+        if (!loadedOnce.current) { setSimulating(true); return; }
         setError(err.message);
         setLoading(false);
       }

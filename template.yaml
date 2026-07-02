@@ -63,7 +63,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: SentimentProcessor
-      CodeUri: .
+      CodeUri: backend/
       Handler: lambda_function.lambda_handler
       Policies:
         - DynamoDBCrudPolicy:
@@ -95,7 +95,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: SentimentQuery
-      CodeUri: .
+      CodeUri: backend/
       Handler: api_handler.lambda_handler
       Policies:
         - DynamoDBReadPolicy:
