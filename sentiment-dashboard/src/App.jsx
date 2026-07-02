@@ -240,6 +240,7 @@ export default function App() {
   const narrow = useMediaQuery('(max-width: 760px)');
   const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const loadedOnce = useRef(false);
+  const userToggled = useRef(false); // once the user clicks the toggle, stop auto-overriding their choice
 
   useEffect(() => {
     if (simulating) return;
@@ -262,7 +263,7 @@ export default function App() {
         if (cancelled) return;
         // No backend reachable on first load → silently fall back to the built-in
         // demo so the dashboard is always populated (works with the stack deleted).
-        if (!loadedOnce.current) { setSimulating(true); return; }
+        if (!loadedOnce.current && !userToggled.current) { setSimulating(true); return; }
         setError(err.message);
         setLoading(false);
       }
@@ -320,7 +321,7 @@ export default function App() {
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
         <Header
           simulating={simulating}
-          onToggleSim={() => setSimulating(v => !v)}
+          onToggleSim={() => { userToggled.current = true; setSimulating(v => !v); }}
           lastSync={lastSync}
           clock={clock}
           moodWord={moodWord}
